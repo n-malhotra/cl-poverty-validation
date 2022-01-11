@@ -1,0 +1,24 @@
+{
+    "id": "BA7F8A2C",
+    "path": "~/GitHub/cl-poverty-validation/scripts/merge poverty status and asset data.R",
+    "project_path": "scripts/merge poverty status and asset data.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1641935903191.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "cursorPosition": "98,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1641940993,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1641941327101,
+    "read_only": false,
+    "read_only_alternatives": []
+}
