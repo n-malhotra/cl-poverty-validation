@@ -1,0 +1,159 @@
+#-------------------------------------------------------------------------------
+# Project: POVERTY VARIABLE SELECTION VALIDATION
+# Purpose: Create household-level data frame to analyze poverty predictors
+#-------------------------------------------------------------------------------
+
+# Libraries
+# ---------
+
+library(dplyr)
+library(foreign)
+library(glmnet)
+library(haven)
+library(here)
+library(tidyverse)
+library(randomForest)
+
+# Clear enviornment
+# -----------------
+
+
+# Read data
+# ---------
+
+## Asset ownership data
+assets <- read_dta(file.path("data", "bangladesh_hies_2016", "HH_SEC_9E.dta"))
+housing <- read_dta(file.path("data", "bangladesh_hies_2016", "HH_SEC_6A.dta"))
+
+
+## Poverty household status data
+poverty <- read_dta(file.path("data", "bangladesh_hies_2016", "poverty_indicators2016.dta"))
+
+
+# Prepare data
+# ------------
+
+# assets owned
+assets_df <- assets %>% 
+  mutate(assets = as_factor(s9eq00),
+         yes = case_when(
+           s9eq01b == "X" ~ 1,
+           s9eq01b == "" ~ 0)) %>% 
+  select(hhid, assets, yes) %>% 
+  filter(!is.na(assets),
+         assets != "NA",
+         assets != "Total") %>% 
+  pivot_wider(
+    names_from = assets,
+    values_from = yes,
+  ) %>% 
+  # clean up asset names
+  rename(radio = Radio,
+         washing_machine = `Washing machine`,
+         dining_room_furniture = `Dining room Furniture`,
+         two_in_one_cassette_player = `Two-in-one, Cassette player`,
+         motor_car = `Motor car etc.`,
+         refrigerator = `Refrigerator or freezer`,
+         drawing_room_furniture = `Drawing room Furniture`,
+         dish = `Dish antena/ decoder`,
+         watch_clock = `Wrist watch/Wall clock`,
+         sewing_machine = `Sewing machine`,
+         fans = Fans,
+         boat = `Boat/Others`,
+         computer = `Computer/TV Card`,
+         kitchen_crockery = `Kitchen Items - Crockery`,
+         tubewell = `Tubewell (for drinking water only)`,
+         bedroom_furniture = `Bedroom Furniture`,
+         television = `Television`,
+         heaters = `Heaters`,
+         carpet = `Carpet`,
+         dvd = `VCR/ VCP/DVD`,
+         kitchen_microwaveoven = `Mocrooven/Kitchen Items - Cooking`,
+         camera = `Camera/ camcorder`,
+         mobile = `Mobile`,
+         pressurelamps_petromax = `Pressure lamps/ petromax`,
+         motorcycle = `Motorcycle/ scooter`,
+         kitchen_cutlery = `Kitchen Items - Cutlery`,
+         bicycle = `Bicycle`) 
+
+# housing
+  
+housing_df <- housing %>% 
+  mutate(num_rooms = s6aq02,
+         dining_room = as_factor(s6aq03),
+         walls_home = as_factor(s6aq07),
+         roof_home = as_factor(s6aq08),
+         drinking_water = as_factor(s6aq12),
+         otheruse_water = as_factor(s6aq16)
+         ) %>% 
+  select(hhid, num_rooms, dining_room, walls_home, 
+         roof_home, drinking_water, otheruse_water) %>% 
+  filter(dining_room!='3',
+         walls_home!='7',
+         !(roof_home %in% c('6', '9'))
+         )
+  
+# poverty classification
+
+poverty_df <- poverty %>% 
+  select(psu, hhid, quarter, hhwgt, stratum, stratum16, 
+         ruc, urbrural, division_code, division_name, 
+         zila_code, zila_name, upperpoor, lowerpoor)
+
+
+cols <- names(assets_df)[2:28]
+
+# join dataframes
+
+hh_df <- inner_join(poverty_df, assets_df, by = "hhid") %>%
+  inner_join(housing_df, by = "hhid") %>% 
+  na.omit() %>% 
+  mutate(lowerpoor = as_factor(lowerpoor),
+         upperpoor = as_factor(upperpoor),
+         urbrural = as_factor(urbrural)) %>% 
+  mutate(across(all_of(cols), factor)) %>% 
+  na.omit() %>% 
+  filter(dining_room!=3)
+
+hh_df_urban <- hh_df %>% 
+  filter(urbrural=="Urban")
+
+hh_df_rural <- hh_df %>% 
+  filter(urbrural=="Rural")
+
+# save merged data frames
+saveRDS(hh_df, file = file.path('data', 'merged data', 'hh_df.rds'))
+saveRDS(hh_df_urban, file = file.path('data', 'merged data', 'hh_df_urban.rds'))
+saveRDS(hh_df_rural, file = file.path('data', 'merged data', 'hh_df_rural.rds'))
+
+
+
+
+# RANDOM FOREST MODEL
+# -------------------------------------------------
+
+# make things reproducible
+set.seed(11516)
+
+# Calculate the size of each of the data sets
+size <- floor(nrow(hh_df_urban)/2)
+
+# Generate a random sample of half the households
+indexes <- sample(1:nrow(hh_df_urban), size = size)
+
+# Assign assets as covariates for variable selection
+covars <- paste(colnames(hh_df_urban)[15:46], collapse = "+")
+rf.form <- as.formula(paste(names(hh_df_urban[14]), covars, sep = "~"))
+
+# Assign the data to the correct sets
+training <- hh_df_urban[indexes,] 
+
+validation <- hh_df_urban[-indexes,]
+
+rf_classifier = randomForest(rf.form, data=training, ntree=500, stratum = stratum16, importance=TRUE)
+
+prediction <- predict(rf_classifier,validation[,-13:-14])
+
+table(observed=validation[,14],predicted=prediction)
+
+

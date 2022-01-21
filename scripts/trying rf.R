@@ -14,7 +14,7 @@ training <- iris[indexes,]
 validation1 <- iris[-indexes,]
 
 
-rf_classifier = randomForest(Species ~ ., data=training, ntree=100, mtry=2, importance=TRUE)
+rf_classifier = randomForest(Species ~ ., data=training, ntree=500, mtry=2, importance=TRUE)
 
 rf_classifier
 
