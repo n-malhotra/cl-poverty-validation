@@ -67,7 +67,11 @@ cv.lasso <- cv.glmnet(x.train, y.train, alpha = 1, family = "binomial")
 plot(cv.lasso)
 
 # Fit model on the training data using the cross-validated value of lambda
-lasso.model <- glmnet(x.train, y.train, family = "binomial", alpha = 1, lambda = cv.lasso$lambda.min)
+lasso.model <- glmnet(x.train, y.train, 
+                      family = "binomial", 
+                      alpha = 1, 
+                      lambda = cv.lasso$lambda.min,
+                      standardize.response = TRUE)
 
 coef(lasso.model)
 
